@@ -1,0 +1,235 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  margin: auto;
+  position: relative;
+  width: 960px;
+}
+
+text {
+  font: 10px sans-serif;
+}
+
+ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #333;
+}
+
+li {
+    float: left;
+}
+
+li a {
+    display: block;
+    color: white;
+    text-align: center;
+    padding: 14px 16px;
+    text-decoration: none;
+}
+
+
+/* Change the link color to #111 (black) on hover */
+li a:hover {
+    background-color: #111;
+}
+
+.active {
+    background-color: #4CAF50;
+}
+
+
+#chart { width:600px; height:600px; background-color: none;}
+
+</style>
+<title>Survey Results</title>
+</head>
+
+<body>
+    <ul id="navbar"></ul>
+    <svg id="chart">
+      <style type="text/css">
+        <![CDATA[
+        text {font-size: 20px}
+      	circle.outline {fill:white; stroke-width:1px; stroke:black; z-index: 100}
+        circle.solid {fill:black; stroke-width:1px; stroke:black; z-index: 100}
+      	text.clabel {
+          fill: black;
+          font-weight: normal;
+          text-anchor:middle;
+          valign:middle; dominant-baseline:central;
+          z-index: 500;
+        }
+        text.clabel_solid {
+          fill: white;
+          font-weight: normal;
+          text-anchor: middle;
+          valign:middle; dominant-baseline:central;
+          z-index: 500;
+        }
+
+        line {stroke:darkgray; stroke-width: 3px; z-index: 0}
+    	]]>
+      </style>
+    </svg>
+<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script>
+
+  function bubble_text(n) {
+    if(n>2) {
+      return ""+n;
+    } else {
+      return "";
+    }
+  }
+
+  var urlParams = {};
+
+  var query = window.location.search.substring(1).split('&')
+  for (var q in query) {
+    var k = query[q].indexOf('=')
+    if (k>1) {
+      urlParams[decodeURI(query[q].substring(0, k))] = decodeURI(query[q].substring(k+1, 9999))
+    }
+  }
+
+  var x = d3.scale.linear().range([100, 500]).domain([0,5])
+  var y = d3.scale.linear().range([500, 100]).domain([0,5])
+  var r = d3.scale.linear().range([0, 40]).domain([0,5])
+
+  var sum_inital = new Array()
+  var sum_final = new Array()
+  for (k=1;k<=4; k++) {
+    sum_inital[k] = 0
+    sum_final[k] = 0
+  }
+
+  d3.csv("procdata.csv", function (error, con) {
+    var topic = ''
+    if (urlParams['topic'] != undefined) {
+      topic = urlParams['topic']
+    } else {
+      topic = con[0].topic
+    }
+
+    d3.select("#navbar").selectAll("li").data(d3.map(con, function(d) {return d.topic}).keys())
+      .enter().append("li")
+      .attr("id", function(d){return d;})
+      .html(function(d) {return '<a href="?topic='+d+'">'+d+'</a>';})
+    d3.select("#"+topic).attr("class", "active")
+
+    console.log("Topic "+topic)
+    dat = con.filter(function(d) { return d.topic==topic})
+    i = 0;
+    dat.forEach(function(d) {
+      i+=1;
+      console.log(""+i+": inital="+d.initial+"  final="+d.final+" topic="+d.topic+" n="+d.n)
+    })
+	  var svg = d3.select("#chart")
+
+    svg.append("g").append("line")          // attach a line
+  	    //.style("stroke", "black")
+        .style("stroke-dasharray", [10,10])   // colour the line
+  	    .attr("x1", x(0))     // x position of the first end of the line
+  	    .attr("y1", y(0))      // y position of the first end of the line
+  	    .attr("x2", x(5))     // x position of the second end of the line
+  	    .attr("y2", y(5));
+
+
+    gcha = svg.append("g")
+  	bubbles = gcha.selectAll("circle")
+  	    .data(dat)
+  	    .enter().append("circle")
+  		  .attr("class", "solid")
+  	    .attr("cx", function(d) {return x(d.final);})
+  	    .attr("cy", function(d) {return y(d.initial);})
+  	    .attr("r", function(d) {return r(Math.sqrt(parseInt(d.n)));})
+  	;
+
+  	labels = gcha.selectAll("text")
+        .data(dat)
+  	    .enter().append("text")
+  	    .attr("class", "clabel_solid")
+  	    .attr("x", function(d) {return x(d.final);})
+  	    .attr("y", function(d) {return y(d.initial);})
+  	    .text(function(d) {return bubble_text(d.n);})
+  	;
+
+    //  axg = svg.append("g")
+  	bubbles.each(function(d, i){
+       sum_inital[d.initial] += parseInt(d.n);
+       sum_final[d.final] += parseInt(d.n);
+    })
+
+
+    // Initial
+    g_initial = svg.append("g")
+  	g_initial.append("line")
+  	    //.style("stroke", "black")
+  	    .attr("x1", x(0))
+  	    .attr("y1", y(0))
+  	    .attr("x2", x(0))
+  	    .attr("y2", y(5));
+
+    // final
+    g_final = svg.append("g")
+  	g_final.append("line")
+  	    //.style("stroke", "black")
+  	    .attr("x1", x(0))
+  	    .attr("y1", y(0))
+  	    .attr("x2", x(5))
+  	    .attr("y2", y(0));
+
+  	for (k=1; k<=4; k++) {
+  	    g_final.append("text")
+          .style("font-weight", "bold")
+          .attr("x", x(5))
+          .attr("y", y(k))
+          .text(k)
+          ;
+        g_final.append("circle")
+          .attr("class", "outline")
+          .attr("cx",x(k))
+          .attr("cy", y(0))
+          .attr("r", r(Math.sqrt(sum_final[k])))
+          ;
+        g_final.append("text")
+          .attr("class", "clabel")
+          .attr("x",x(k))
+          .attr("y", y(0))
+          .text(bubble_text(sum_final[k]))
+          ;
+  	    g_initial.append("text")
+          .style("font-weight", "bold")
+          .attr("x", x(k))
+          .attr("y", y(5))
+          .text(k)
+          ;
+        g_initial.append("circle")
+          .attr("class", "outline")
+          .attr("cx",x(0))
+          .attr("cy", y(k))
+          .attr("r", r(Math.sqrt(sum_inital[k])))
+          ;
+        g_initial.append("text")
+          .attr("class", "clabel")
+          .attr("x",x(0))
+          .attr("y", y(k))
+          .text(bubble_text(sum_inital[k]))
+          ;
+
+  	}
+
+
+}) // d3.csv
+
+</script>
+</body>
+</html>
